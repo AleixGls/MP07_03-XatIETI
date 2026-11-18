@@ -69,7 +69,7 @@ log/
 # VARIABLES DE ENTORNO Y SECRETOS
 # ==========================================
 
-.env
+*.env
 .env.*
 !.env.example
 
