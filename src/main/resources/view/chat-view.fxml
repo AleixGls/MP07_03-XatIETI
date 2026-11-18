@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.text.Font?>
+
+<BorderPane prefHeight="700.0" prefWidth="1000.0" xmlns="http://javafx.com/javafx/21.0.6" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.xat_ieti.controller.ChatController">
+   <top>
+      <HBox alignment="CENTER" prefHeight="65.0" prefWidth="200.0" spacing="15.0" BorderPane.alignment="CENTER">
+         <padding>
+            <Insets bottom="15.0" left="15.0" right="15.0" top="15.0" />
+         </padding>
+         <children>
+            <Label alignment="CENTER" contentDisplay="CENTER" text="Xat IETI" textAlignment="CENTER">
+               <font>
+                  <Font size="24.0" />
+               </font>
+            </Label>
+         </children>
+      </HBox>
+   </top>
+    <center>
+        <ScrollPane fitToWidth="true" hbarPolicy="NEVER" BorderPane.alignment="CENTER">
+            <content>
+                <VBox fx:id="messagesContainer" fillWidth="true" spacing="15.0">
+                    <padding>
+                        <Insets bottom="20.0" left="20.0" right="20.0" top="20.0"/>
+                    </padding>
+                </VBox>
+            </content>
+        </ScrollPane>
+    </center>
+   <bottom>
+      <VBox alignment="CENTER" prefHeight="110.0" prefWidth="1000.0" spacing="10.0" BorderPane.alignment="CENTER">
+         <padding>
+            <Insets bottom="15.0" left="15.0" right="15.0" top="15.0" />
+         </padding>
+         <children>
+            <HBox fx:id="imagePreviewContainer" alignment="CENTER" layoutX="25.0" layoutY="38.0" prefHeight="39.0" prefWidth="970.0" spacing="20.0" />
+            <HBox alignment="CENTER" prefHeight="40.0" prefWidth="970.0" spacing="20.0">
+               <children>
+                  <Button fx:id="attachButton" alignment="CENTER" contentDisplay="CENTER" mnemonicParsing="false" text="+ Image">
+                     <font>
+                        <Font size="15.0" />
+                     </font>
+                  </Button>
+                  <TextArea fx:id="messageInput" prefHeight="40.0" prefWidth="780.0" promptText="Write your message..." wrapText="true">
+                     <font>
+                        <Font size="13.0" />
+                     </font>
+                  </TextArea>
+                  <Button fx:id="sendButton" alignment="CENTER" contentDisplay="CENTER" layoutX="10.0" layoutY="10.0" mnemonicParsing="false" onAction="#handleSend" text="Send">
+                     <font>
+                        <Font size="15.0" />
+                     </font>
+                  </Button>
+                  <Button fx:id="stopButton" alignment="CENTER" contentDisplay="CENTER" layoutX="916.0" layoutY="14.0" mnemonicParsing="false" onAction="#handleStop" text="Stop">
+                     <font>
+                        <Font size="15.0" />
+                     </font>
+                  </Button>
+               </children>
+            </HBox>
+         </children>
+      </VBox>
+   </bottom>
+</BorderPane>
