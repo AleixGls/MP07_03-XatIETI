@@ -1,12 +1,15 @@
 package com.xat_ieti;
 
+
+
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
-
 import java.io.IOException;
+
+
 
 public class Main extends Application {
 
@@ -25,6 +28,7 @@ public class Main extends Application {
         stage.setScene(scene);
         stage.setMinWidth(700);
         stage.setMinHeight(500);
+        stage.setResizable(false);
         stage.show();
     }
 

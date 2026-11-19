@@ -1,33 +1,42 @@
 package com.xat_ieti.controller;
 
+
+
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import com.xat_ieti.service.OllamaService;
+import javafx.concurrent.Task;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
+
+
 
 public class ChatController {
 
-    // Contenedores
+    // Componentes
     @FXML
     private VBox messagesContainer;
-
     @FXML
     private HBox imagePreviewContainer;
-
-    // Componentes de entrada
     @FXML
     private Button attachButton;
-
     @FXML
     private TextArea messageInput;
-
     @FXML
     private Button sendButton;
-
     @FXML
     private Button stopButton;
+
+    // Atributos
+    // Servicio de comunicación con Qwen38
+    private final OllamaService ollamaService = new OllamaService();
+    // Tarea de la petición actual
+    private Task<String> currentTask;
+
 
 
     /**
@@ -51,17 +60,65 @@ public class ChatController {
 
         String message = messageInput.getText().trim();
 
-        // No enviamos mensajes vacíos
         if (message.isEmpty()) {
             return;
         }
 
-        // Mostramos el mensaje del usuario
+        // Mostrar el mensaje del usuario
         addMessage(message, true);
 
-        // Limpiamos el campo de entrada
         messageInput.clear();
 
+        // Mostrar Stop y ocultar Send
+        setRequestRunning(true);
+
+        // Crear la tarea
+        currentTask = new Task<>() {
+
+            @Override
+            protected String call() {
+
+                return ollamaService.ask(message).join();
+            }
+        };
+
+        // Cuando termina correctamente
+        currentTask.setOnSucceeded(event -> {
+
+            String response = currentTask.getValue();
+
+            addMessage(response, false);
+
+            setRequestRunning(false);
+            currentTask = null;
+        });
+
+        // Cuando ocurre un error
+        currentTask.setOnFailed(event -> {
+
+            Throwable error = currentTask.getException();
+
+            Alert alert = new Alert(AlertType.ERROR);
+            alert.setTitle("Error");
+            alert.setHeaderText("No se ha podido obtener una respuesta");
+            alert.setContentText(error.getMessage());
+            alert.showAndWait();
+
+            setRequestRunning(false);
+            currentTask = null;
+        });
+
+        // Cuando se cancela la tarea
+        currentTask.setOnCancelled(event -> {
+
+            setRequestRunning(false);
+            currentTask = null;
+        });
+
+        // Ejecutar en segundo plano
+        Thread thread = new Thread(currentTask);
+        thread.setDaemon(true);
+        thread.start();
     }
 
 
@@ -128,7 +185,20 @@ public class ChatController {
     @FXML
     private void handleStop() {
 
-        // La cancelación se implementará más adelante.
+        if (currentTask != null) {
 
+            currentTask.cancel();
+
+        }
+    }
+
+    // Metodo para intercambiar los botones de Send y Stop entre si
+    private void setRequestRunning(boolean running) {
+
+        sendButton.setVisible(!running);
+        sendButton.setManaged(!running);
+
+        stopButton.setVisible(running);
+        stopButton.setManaged(running);
     }
 }
