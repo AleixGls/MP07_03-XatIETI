@@ -9,6 +9,8 @@ import javafx.scene.control.TextArea;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import com.xat_ieti.service.OllamaService;
+
+import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
@@ -35,7 +37,7 @@ public class ChatController {
     // Servicio de comunicación con Qwen38
     private final OllamaService ollamaService = new OllamaService();
     // Tarea de la petición actual
-    private Task<String> currentTask;
+    private Task<Void> currentTask;
 
 
 
@@ -66,34 +68,48 @@ public class ChatController {
 
         // Mostrar el mensaje del usuario
         addMessage(message, true);
-
         messageInput.clear();
 
-        // Mostrar Stop y ocultar Send
+        // Crear una burbuja vacía para la respuesta del asistente
+        Label responseLabel = addMessage("Pensando...", false);
+
         setRequestRunning(true);
 
-        // Crear la tarea
+        // Crear una tarea que ejecutará la petición en segundo plano
         currentTask = new Task<>() {
 
             @Override
-            protected String call() {
+            protected Void call() {
 
-                return ollamaService.ask(message).join();
+                ollamaService.askStream(
+                    message,
+                    fragment -> Platform.runLater(() -> {
+                    
+                        // Si todavía aparece el indicador, sustituirlo
+                        // por el primer fragmento recibido
+                        if (responseLabel.getText().equals("Pensando...")) {
+                            responseLabel.setText(fragment);
+                        } else {
+                            // Añadir los siguientes fragmentos
+                            responseLabel.setText(
+                                    responseLabel.getText() + fragment
+                            );
+                        }
+                    
+                    })
+                ).join();
+
+                return null;
             }
         };
 
         // Cuando termina correctamente
         currentTask.setOnSucceeded(event -> {
-
-            String response = currentTask.getValue();
-
-            addMessage(response, false);
-
             setRequestRunning(false);
             currentTask = null;
         });
 
-        // Cuando ocurre un error
+        // Si se produce un error
         currentTask.setOnFailed(event -> {
 
             Throwable error = currentTask.getException();
@@ -101,21 +117,22 @@ public class ChatController {
             Alert alert = new Alert(AlertType.ERROR);
             alert.setTitle("Error");
             alert.setHeaderText("No se ha podido obtener una respuesta");
-            alert.setContentText(error.getMessage());
+            alert.setContentText(
+                    error != null ? error.getMessage() : "Error desconocido."
+            );
             alert.showAndWait();
 
             setRequestRunning(false);
             currentTask = null;
         });
 
-        // Cuando se cancela la tarea
+        // Si el usuario cancela la tarea
         currentTask.setOnCancelled(event -> {
-
             setRequestRunning(false);
             currentTask = null;
         });
 
-        // Ejecutar en segundo plano
+        // Ejecutar la tarea en un hilo independiente
         Thread thread = new Thread(currentTask);
         thread.setDaemon(true);
         thread.start();
@@ -127,40 +144,27 @@ public class ChatController {
      *
      * @param text texto del mensaje
      * @param user true si el mensaje es del usuario
-     */
-    private void addMessage(String text, boolean user) {
-
+    */
+    private Label addMessage(String text, boolean user) {
         Label messageLabel = new Label(text);
-
-        // Permitir saltos de línea
         messageLabel.setWrapText(true);
-
-        // El ancho mínimo puede reducirse
         messageLabel.setMinWidth(0);
 
-        // El ancho preferido se calcula según el contenido
-        // No lo vinculamos a un porcentaje fijo.
-
-        // El ancho máximo será el 75% del chat
         messageLabel.maxWidthProperty().bind(
                 messagesContainer.widthProperty()
                         .subtract(40)
                         .multiply(0.75)
         );
 
-        // Contenedor de la burbuja
         HBox messageBox = new HBox(messageLabel);
-
         messageBox.setSpacing(10);
         messageBox.setMaxWidth(Double.MAX_VALUE);
 
-        // Alineación del mensaje
         messageBox.setAlignment(
                 user ? javafx.geometry.Pos.CENTER_RIGHT
                      : javafx.geometry.Pos.CENTER_LEFT
         );
 
-        // Estilo visual
         messageLabel.setStyle(
                 "-fx-background-color: " +
                 (user ? "#DCEBFF" : "#EAEAEA") +
@@ -170,8 +174,9 @@ public class ChatController {
                 "-fx-background-radius: 10;"
         );
 
-        // Añadir al historial
         messagesContainer.getChildren().add(messageBox);
+
+        return messageLabel;
     }
 
 
@@ -185,10 +190,12 @@ public class ChatController {
     @FXML
     private void handleStop() {
 
+        // Cancelar la petición HTTP al servidor
+        ollamaService.cancelCurrentRequest();
+
+        // Cancelar la tarea de JavaFX
         if (currentTask != null) {
-
             currentTask.cancel();
-
         }
     }
 
