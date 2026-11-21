@@ -17,14 +17,14 @@ public class Main extends Application {
     public void start(Stage stage) throws IOException {
 
         FXMLLoader loader = new FXMLLoader(
-                Main.class.getResource("/view/chat-view.fxml")
+                Main.class.getResource("/chat-view.fxml")
         );
 
         Parent root = loader.load();
 
         Scene scene = new Scene(root);
 
-        stage.setTitle("Xat IETI - Ollama");
+        stage.setTitle("Xat IETI");
         stage.setScene(scene);
         stage.setMinWidth(700);
         stage.setMinHeight(500);

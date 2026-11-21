@@ -60,7 +60,7 @@ public class OllamaService {
 
         if (MODEL_KEY == null || MODEL_KEY.isBlank()) {
             throw new IllegalStateException(
-                    "No se ha encontrado MODEL_KEY en AgentsIETI.env."
+                "MODEL_KEY was not found in AgentsIETI.env."
             );
         }
 
@@ -93,15 +93,15 @@ public class OllamaService {
     public CompletableFuture<HttpResponse<String>> sendMessage(String message) {
     
         Map<String, Object> requestBody = Map.of(
-                "model", MODEL_NAME,
-                "messages", List.of(
-                        Map.of(
-                                "role", "user",
-                                "content", message
-                        )
-                ),
-                "stream", false,
-                "reasoning_effort", "low"
+            "model", MODEL_NAME,
+            "messages", List.of(
+                Map.of(
+                    "role", "user",
+                    "content", message
+                )
+            ),
+            "stream", false,
+            "reasoning_effort", "low"
         );
     
         return sendRequest(requestBody);
@@ -116,14 +116,14 @@ public class OllamaService {
 
             // Acceder al texto de la respuesta
             JsonNode content = root
-                    .path("choices")
-                    .path(0)
-                    .path("message")
-                    .path("content");
+                .path("choices")
+                .path(0)
+                .path("message")
+                .path("content");
 
             if (content.isMissingNode() || content.isNull()) {
                 throw new IllegalStateException(
-                        "El servidor no ha devuelto ningún mensaje."
+                    "The server did not return any message."
                 );
             }
 
@@ -131,8 +131,8 @@ public class OllamaService {
 
         } catch (JsonProcessingException e) {
             throw new IllegalStateException(
-                    "No se ha podido interpretar la respuesta del servidor.",
-                    e
+                "Unable to parse the server response.",
+                e
             );
         }
     }
@@ -146,10 +146,10 @@ public class OllamaService {
                     // Comprobar el código de respuesta HTTP
                     if (response.statusCode() != 200) {
                         throw new IllegalStateException(
-                                "Error del servidor. Código HTTP: "
-                                        + response.statusCode()
-                                        + "\n"
-                                        + response.body()
+                            "Server error. HTTP status code: "
+                            + response.statusCode()
+                            + "\n"
+                            + response.body()
                         );
                     }
 
@@ -171,13 +171,13 @@ public class OllamaService {
             conversationHistory.remove(0);
         }
 
-        // Añadir el mensaje del usuario
-        conversationHistory.add(
-                Map.of(
-                        "role", "user",
-                        "content", message
-                )
+        // Crear y guardar el mensaje del usuario
+        Map<String, Object> userMessage = Map.of(
+                "role", "user",
+                "content", message
         );
+
+        conversationHistory.add(userMessage);
 
         // Construir la petición con el historial
         Map<String, Object> requestBody = Map.of(
@@ -242,10 +242,10 @@ public class OllamaService {
                         );
 
                         throw new IllegalStateException(
-                                "Error del servidor. Código HTTP: "
-                                        + response.statusCode()
-                                        + "\n"
-                                        + errorBody
+                            "Server error. HTTP status code: "
+                            + response.statusCode()
+                            + "\n"
+                            + errorBody
                         );
                     }
 
@@ -322,12 +322,19 @@ public class OllamaService {
                     currentRequest.compareAndSet(requestFuture, null);
                 }
 
+            }).whenComplete((result, error) -> {
+                // Si la petición falla o se cancela, eliminar el mensaje del usuario
+                if (error != null) {
+                    conversationHistory.removeIf(
+                            messageEntry -> messageEntry == userMessage
+                    );
+                }
             });
 
         } catch (JsonProcessingException e) {
 
             throw new IllegalStateException(
-                "No se ha podido construir el JSON de la petición.",
+                "Unable to build the request JSON.",
                 e
             );
         }
@@ -372,6 +379,9 @@ public class OllamaService {
             String base64Image
     ) {
     
+        // Eliminar del historial los mensajes que contienen imágenes
+        conversationHistory.removeIf(this::containsImage);
+
         // Reservar espacio para el nuevo intercambio
         if (conversationHistory.size() >= MAX_HISTORY_MESSAGES - 1) {
             conversationHistory.remove(0);
@@ -392,13 +402,13 @@ public class OllamaService {
                 )
         );
     
-        // Guardar el mensaje del usuario con su imagen
-        conversationHistory.add(
-                Map.of(
-                        "role", "user",
-                        "content", content
-                )
+        // Crear y guardar el mensaje del usuario con la imagen
+        Map<String, Object> userMessage = Map.of(
+                "role", "user",
+                "content", content
         );
+        
+        conversationHistory.add(userMessage);
     
         // Construir la petición con todo el historial
         Map<String, Object> requestBody = Map.of(
@@ -424,9 +434,25 @@ public class OllamaService {
                             "content", assistantResponse
                         )
                     );
+                
+                } else {
+                
+                    // Eliminar el mensaje del usuario si el servidor devuelve un error
+                    conversationHistory.removeIf(
+                        messageEntry -> messageEntry == userMessage
+                    );
                 }
             
                 return response;
+            
+            }).whenComplete((response, error) -> {
+            
+                // Eliminar el mensaje del usuario si la petición falla o se cancela
+                if (error != null) {
+                    conversationHistory.removeIf(
+                        messageEntry -> messageEntry == userMessage
+                    );
+                }
             });
     }
 
@@ -461,7 +487,7 @@ public class OllamaService {
 
         } catch (JsonProcessingException e) {
             throw new IllegalStateException(
-                "No se ha podido construir el JSON de la petición.",
+                "Unable to build the request JSON.",
                 e
             );
         }
@@ -484,7 +510,33 @@ public class OllamaService {
         }
 
         throw new IllegalArgumentException(
-                "Formato de imagen no compatible."
+            "Unsupported image format."
         );
+    }
+
+    /**
+     * Comprueba si un mensaje del historial contiene una imagen.
+     *
+     * @param message mensaje que queremos comprobar
+     * @return true si contiene una imagen
+     */
+    private boolean containsImage(Map<String, Object> message) {
+
+        Object contentObject = message.get("content");
+
+        if (contentObject instanceof List<?> contentList) {
+
+            for (Object item : contentList) {
+
+                if (item instanceof Map<?, ?> contentItem) {
+
+                    if ("image_url".equals(contentItem.get("type"))) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 }

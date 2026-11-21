@@ -5,6 +5,7 @@ package com.xat_ieti.controller;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -19,6 +20,8 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 
 
 
@@ -37,6 +40,8 @@ public class ChatController {
     private Button sendButton;
     @FXML
     private Button stopButton;
+    @FXML
+    private ScrollPane chatScrollPane;
 
     // Atributos
     // Servicio de comunicación con Qwen38
@@ -62,6 +67,32 @@ public class ChatController {
         // El contenedor de imágenes empieza oculto
         imagePreviewContainer.setVisible(false);
         imagePreviewContainer.setManaged(false);
+
+        // Evento para gestionar el la funcion del Enter
+        messageInput.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+        
+            if (event.getCode() == KeyCode.ENTER) {
+            
+                if (event.isShiftDown()) {
+                
+                    // Insertar manualmente un salto de línea
+                    messageInput.insertText(
+                        messageInput.getCaretPosition(),
+                        "\n"
+                    );
+                
+                } else {
+                
+                    // Enter: enviar solo si no hay otra petición en curso
+                    if (currentTask == null) {
+                        handleSend();
+                    }
+                }
+            
+                // Evitar que JavaFX procese el Enter por su cuenta
+                event.consume();
+            }
+        });
     }
 
 
@@ -73,7 +104,8 @@ public class ChatController {
 
         String message = messageInput.getText().trim();
 
-        if (message.isEmpty()) {
+        // No enviar nada si no hay texto ni imagen
+        if (message.isEmpty() && selectedImage == null) {
             return;
         }
 
@@ -143,6 +175,9 @@ public class ChatController {
                 
                     setRequestRunning(false);
                     currentTask = null;
+
+                    // Desplazar el chat hasta la respuesta completa
+                    scrollToBottom();
                 });
             
                 requestTask.setOnFailed(requestEvent -> {
@@ -156,17 +191,17 @@ public class ChatController {
                             
                         setRequestRunning(false);
                         currentTask = null;
-                        responseLabel.setText("Se ha cancelado la peticion.");
+                        responseLabel.setText("The request has been cancelled.");
                         return;
                     }
                 
-                    responseLabel.setText("No se ha podido obtener una respuesta.");
+                    responseLabel.setText("Unable to get a response.");
                 
                     Alert alert = new Alert(AlertType.ERROR);
                     alert.setTitle("Error");
-                    alert.setHeaderText("Error al enviar la imagen");
+                    alert.setHeaderText("Error sending the image");
                     alert.setContentText(
-                            error != null ? error.getMessage() : "Error desconocido."
+                        error != null ? error.getMessage() : "Unknown error."
                     );
                     alert.showAndWait();
                 
@@ -175,6 +210,7 @@ public class ChatController {
                 });
             
                 requestTask.setOnCancelled(requestEvent -> {
+                    responseLabel.setText("The request has been cancelled.");
                     setRequestRunning(false);
                     currentTask = null;
                 });
@@ -190,9 +226,9 @@ public class ChatController {
             
                 Alert alert = new Alert(AlertType.ERROR);
                 alert.setTitle("Error");
-                alert.setHeaderText("No se ha podido procesar la imagen");
+                alert.setHeaderText("Unable to process the image");
                 alert.setContentText(
-                        error != null ? error.getMessage() : "Error desconocido."
+                    error != null ? error.getMessage() : "Unknown error."
                 );
                 alert.showAndWait();
             
@@ -201,6 +237,7 @@ public class ChatController {
             });
         
             imageTask.setOnCancelled(event -> {
+                responseLabel.setText("The request has been cancelled.");
                 setRequestRunning(false);
                 currentTask = null;
             });
@@ -227,23 +264,23 @@ public class ChatController {
             @Override
             protected Void call() {
 
-                ollamaService.askStream(
-                    message,
-                    fragment -> Platform.runLater(() -> {
-                    
-                        // Si todavía aparece el indicador, sustituirlo
-                        // por el primer fragmento recibido
-                        if (responseLabel.getText().equals("Thinking...")) {
-                            responseLabel.setText(fragment);
-                        } else {
-                            // Añadir los siguientes fragmentos
-                            responseLabel.setText(
-                                    responseLabel.getText() + fragment
-                            );
-                        }
-                    
-                    })
-                ).join();
+                ollamaService.askStream(message, fragment -> Platform.runLater(() -> {
+                
+                    // Si todavía aparece el indicador, sustituirlo
+                    // por el primer fragmento recibido
+                    if (responseLabel.getText().equals("Thinking...")) {
+                        responseLabel.setText(fragment);
+                    } else {
+                        // Añadir los siguientes fragmentos
+                        responseLabel.setText(
+                            responseLabel.getText() + fragment
+                        );
+                    }
+                
+                    // Desplazar el chat mientras llega la respuesta
+                    scrollToBottom();
+                
+                })).join();
 
                 return null;
             }
@@ -253,6 +290,7 @@ public class ChatController {
         currentTask.setOnSucceeded(event -> {
             setRequestRunning(false);
             currentTask = null;
+            scrollToBottom();
         });
 
         // Si se produce un error
@@ -262,9 +300,9 @@ public class ChatController {
 
             Alert alert = new Alert(AlertType.ERROR);
             alert.setTitle("Error");
-            alert.setHeaderText("No se ha podido obtener una respuesta");
+            alert.setHeaderText("Unable to get a response");
             alert.setContentText(
-                    error != null ? error.getMessage() : "Error desconocido."
+                error != null ? error.getMessage() : "Unknown error."
             );
             alert.showAndWait();
 
@@ -274,6 +312,7 @@ public class ChatController {
 
         // Si el usuario cancela la tarea
         currentTask.setOnCancelled(event -> {
+            responseLabel.setText("The request has been cancelled.");
             setRequestRunning(false);
             currentTask = null;
         });
@@ -321,6 +360,7 @@ public class ChatController {
         );
 
         messagesContainer.getChildren().add(messageBox);
+        scrollToBottom();
 
         return messageLabel;
     }
@@ -363,12 +403,12 @@ public class ChatController {
         FileChooser fileChooser = new FileChooser();
 
         // Título de la ventana
-        fileChooser.setTitle("Seleccionar imagen");
+        fileChooser.setTitle("Select an image");
 
         // Permitir únicamente archivos de imagen
         FileChooser.ExtensionFilter imageFilter =
                 new FileChooser.ExtensionFilter(
-                        "Imágenes",
+                        "Images",
                         "*.png",
                         "*.jpg",
                         "*.jpeg",
@@ -437,16 +477,19 @@ public class ChatController {
      */
     private void addMessageWithImage(String text, File imageFile) {
 
-        // Crear la etiqueta del mensaje
-        Label messageLabel = new Label(text);
-        messageLabel.setWrapText(true);
-        messageLabel.setMinWidth(0);
+        VBox contentBox = new VBox(5);
 
-        messageLabel.maxWidthProperty().bind(
-                messagesContainer.widthProperty()
-                        .subtract(40)
-                        .multiply(0.75)
-        );
+        // Añadir el texto solamente si no está vacío
+        if (text != null && !text.isBlank()) {
+            Label messageLabel = new Label(text);
+            messageLabel.setWrapText(true);
+            messageLabel.setMinWidth(0);
+            messageLabel.maxWidthProperty().bind(
+                messagesContainer.widthProperty().subtract(40).multiply(0.75)
+            );
+
+            contentBox.getChildren().add(messageLabel);
+        }
 
         // Crear la miniatura
         Image image = new Image(imageFile.toURI().toString());
@@ -457,15 +500,14 @@ public class ChatController {
         imageView.setPreserveRatio(true);
         imageView.setSmooth(true);
 
-        // Contenedor vertical para el texto y la imagen
-        VBox contentBox = new VBox(8);
-        contentBox.getChildren().addAll(messageLabel, imageView);
+        // Añadir la imagen al contenedor
+        contentBox.getChildren().add(imageView);
 
         // Aplicar el mismo estilo que el mensaje normal
         contentBox.setStyle(
-                "-fx-background-color: #DCEBFF;" +
-                "-fx-padding: 12;" +
-                "-fx-background-radius: 10;"
+            "-fx-background-color: #DCEBFF;" +
+            "-fx-padding: 12;" +
+            "-fx-background-radius: 10;"
         );
 
         // Contenedor y alineación del mensaje
@@ -475,5 +517,15 @@ public class ChatController {
         messageBox.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
 
         messagesContainer.getChildren().add(messageBox);
+        scrollToBottom();
+    }
+
+    // Metodo para bajar abajo del todo del scroll
+    private void scrollToBottom() {
+        Platform.runLater(() -> {
+            chatScrollPane.applyCss();
+            chatScrollPane.layout();
+            chatScrollPane.setVvalue(1.0);
+        });
     }
 }

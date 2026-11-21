@@ -10,7 +10,7 @@
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.text.Font?>
 
-<BorderPane prefHeight="700.0" prefWidth="1000.0" xmlns="http://javafx.com/javafx/26" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.xat_ieti.controller.ChatController">
+<BorderPane prefHeight="700.0" prefWidth="1000.0" xmlns="http://javafx.com/javafx/21.0.6" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.xat_ieti.controller.ChatController">
    <top>
       <HBox alignment="CENTER" prefHeight="65.0" prefWidth="200.0" spacing="15.0" BorderPane.alignment="CENTER">
          <padding>
@@ -26,7 +26,7 @@
       </HBox>
    </top>
     <center>
-        <ScrollPane fitToWidth="true" hbarPolicy="NEVER" BorderPane.alignment="CENTER">
+        <ScrollPane fx:id="chatScrollPane" fitToWidth="true" hbarPolicy="NEVER" BorderPane.alignment="CENTER">
             <content>
                 <VBox fx:id="messagesContainer" fillWidth="true" spacing="15.0">
                     <padding>
