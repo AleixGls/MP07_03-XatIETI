@@ -25,6 +25,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
 import java.util.concurrent.atomic.AtomicReference;
+import java.io.File;
+import java.nio.file.Files;
+import java.util.Base64;
 
 
 
@@ -88,8 +91,7 @@ public class OllamaService {
 
     // Enviar un mensaje al modelo
     public CompletableFuture<HttpResponse<String>> sendMessage(String message) {
-
-        // Construir el contenido de la petición
+    
         Map<String, Object> requestBody = Map.of(
                 "model", MODEL_NAME,
                 "messages", List.of(
@@ -101,35 +103,12 @@ public class OllamaService {
                 "stream", false,
                 "reasoning_effort", "low"
         );
-
-        try {
-            // Convertir el objeto Java a JSON
-            String jsonBody = objectMapper.writeValueAsString(requestBody);
-
-            // Construir la petición HTTP
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(MODEL_URL + "/chat/completions"))
-                    .header("Content-Type", "application/json")
-                    .header("Authorization", "Bearer " + MODEL_KEY)
-                    .POST(BodyPublishers.ofString(jsonBody))
-                    .build();
-
-            // Enviar la petición de forma asíncrona
-            return httpClient.sendAsync(
-                    request,
-                    BodyHandlers.ofString()
-            );
-
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException(
-                    "No se ha podido construir el JSON de la petición.",
-                    e
-            );
-        }
+    
+        return sendRequest(requestBody);
     }
 
     // Extraer el texto de la respuesta JSON
-    private String extractResponse(String jsonResponse) {
+    public String extractResponse(String jsonResponse) {
 
         try {
             // Convertir el JSON recibido en un árbol de nodos
@@ -302,14 +281,13 @@ public class OllamaService {
                             JsonNode root = objectMapper.readTree(data);
 
                             JsonNode content = root
-                                    .path("choices")
-                                    .path(0)
-                                    .path("delta")
-                                    .path("content");
+                                .path("choices")
+                                .path(0)
+                                .path("delta")
+                                .path("content");
 
                             // Enviar el fragmento recibido
-                            if (!content.isMissingNode()
-                                    && !content.isNull()) {
+                            if (!content.isMissingNode() && !content.isNull()) {
 
                                 String text = content.asText();
 
@@ -329,8 +307,8 @@ public class OllamaService {
                     if (!assistantResponse.isEmpty()) {
                         conversationHistory.add(
                                 Map.of(
-                                        "role", "assistant",
-                                        "content", assistantResponse.toString()
+                                    "role", "assistant",
+                                    "content", assistantResponse.toString()
                                 )
                         );
                     }
@@ -349,8 +327,8 @@ public class OllamaService {
         } catch (JsonProcessingException e) {
 
             throw new IllegalStateException(
-                    "No se ha podido construir el JSON de la petición.",
-                    e
+                "No se ha podido construir el JSON de la petición.",
+                e
             );
         }
     }
@@ -375,5 +353,138 @@ public class OllamaService {
                 // El flujo ya puede estar cerrado
             }
         }
+    }
+
+    // Convertir una imagen a Base64
+    public String imageToBase64(File file) throws IOException {
+    
+        // Leer los bytes de la imagen
+        byte[] bytes = Files.readAllBytes(file.toPath());
+    
+        // Convertir los bytes a Base64
+        return Base64.getEncoder().encodeToString(bytes);
+    }
+
+    // Enviar un mensaje junto con una imagen
+    public CompletableFuture<HttpResponse<String>> sendMessageWithImage(
+            String message,
+            String mimeType,
+            String base64Image
+    ) {
+    
+        // Reservar espacio para el nuevo intercambio
+        if (conversationHistory.size() >= MAX_HISTORY_MESSAGES - 1) {
+            conversationHistory.remove(0);
+            conversationHistory.remove(0);
+        }
+    
+        // Construir el contenido del mensaje
+        List<Map<String, Object>> content = List.of(
+                Map.of(
+                        "type", "text",
+                        "text", message
+                ),
+                Map.of(
+                        "type", "image_url",
+                        "image_url", Map.of(
+                                "url", "data:" + mimeType + ";base64," + base64Image
+                        )
+                )
+        );
+    
+        // Guardar el mensaje del usuario con su imagen
+        conversationHistory.add(
+                Map.of(
+                        "role", "user",
+                        "content", content
+                )
+        );
+    
+        // Construir la petición con todo el historial
+        Map<String, Object> requestBody = Map.of(
+                "model", MODEL_NAME,
+                "messages", new ArrayList<>(conversationHistory),
+                "stream", false,
+                "reasoning_effort", "low"
+        );
+    
+        // Enviar la petición y guardar la respuesta del asistente
+        return sendRequest(requestBody)
+            .thenApply(response -> {
+            
+                // Guardar la respuesta únicamente si la petición ha funcionado
+                if (response.statusCode() == 200) {
+                
+                    String assistantResponse =
+                        extractResponse(response.body());
+                
+                    conversationHistory.add(
+                        Map.of(
+                            "role", "assistant",
+                            "content", assistantResponse
+                        )
+                    );
+                }
+            
+                return response;
+            });
+    }
+
+    // Enviar una petición HTTP con un cuerpo JSON
+    private CompletableFuture<HttpResponse<String>> sendRequest( Map<String, Object> requestBody) {
+
+        try {
+            String jsonBody = objectMapper.writeValueAsString(requestBody);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(MODEL_URL + "/chat/completions"))
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + MODEL_KEY)
+                .POST(BodyPublishers.ofString(jsonBody))
+                .build();
+
+            CompletableFuture<HttpResponse<String>> future =
+                    httpClient.sendAsync(
+                            request,
+                            BodyHandlers.ofString()
+                    );
+                
+            // Guardar la petición actual para poder cancelarla
+            currentRequest.set(future);
+                
+            // Limpiar la referencia cuando termine
+            future.whenComplete((response, error) ->
+                    currentRequest.compareAndSet(future, null)
+            );
+
+            return future;
+
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException(
+                "No se ha podido construir el JSON de la petición.",
+                e
+            );
+        }
+    }
+
+    // Obtener el tipo MIME de una imagen
+    public String getImageMimeType(File file) {
+
+        String fileName = file.getName().toLowerCase();
+
+        if (fileName.endsWith(".png")) {
+            return "image/png";
+        } else if (fileName.endsWith(".jpg")
+                || fileName.endsWith(".jpeg")) {
+            return "image/jpeg";
+        } else if (fileName.endsWith(".gif")) {
+            return "image/gif";
+        } else if (fileName.endsWith(".webp")) {
+            return "image/webp";
+        }
+
+        throw new IllegalArgumentException(
+                "Formato de imagen no compatible."
+        );
     }
 }

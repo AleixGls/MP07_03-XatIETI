@@ -10,7 +10,7 @@
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.text.Font?>
 
-<BorderPane prefHeight="700.0" prefWidth="1000.0" xmlns="http://javafx.com/javafx/21.0.6" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.xat_ieti.controller.ChatController">
+<BorderPane prefHeight="700.0" prefWidth="1000.0" xmlns="http://javafx.com/javafx/26" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.xat_ieti.controller.ChatController">
    <top>
       <HBox alignment="CENTER" prefHeight="65.0" prefWidth="200.0" spacing="15.0" BorderPane.alignment="CENTER">
          <padding>
@@ -30,22 +30,22 @@
             <content>
                 <VBox fx:id="messagesContainer" fillWidth="true" spacing="15.0">
                     <padding>
-                        <Insets bottom="20.0" left="20.0" right="20.0" top="20.0"/>
+                        <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
                     </padding>
                 </VBox>
             </content>
         </ScrollPane>
     </center>
    <bottom>
-      <VBox alignment="CENTER" prefHeight="110.0" prefWidth="1000.0" spacing="10.0" BorderPane.alignment="CENTER">
+      <VBox alignment="BOTTOM_CENTER" prefHeight="0.0" prefWidth="1000.0" spacing="10.0" BorderPane.alignment="CENTER">
          <padding>
             <Insets bottom="15.0" left="15.0" right="15.0" top="15.0" />
          </padding>
          <children>
-            <HBox fx:id="imagePreviewContainer" alignment="CENTER" layoutX="25.0" layoutY="38.0" prefHeight="39.0" prefWidth="970.0" spacing="20.0" />
+            <HBox fx:id="imagePreviewContainer" alignment="CENTER_LEFT" layoutX="25.0" layoutY="38.0" prefHeight="39.0" prefWidth="970.0" spacing="20.0" />
             <HBox alignment="CENTER" prefHeight="40.0" prefWidth="970.0" spacing="20.0">
                <children>
-                  <Button fx:id="attachButton" alignment="CENTER" contentDisplay="CENTER" mnemonicParsing="false" text="+ Image">
+                  <Button fx:id="attachButton" alignment="CENTER" contentDisplay="CENTER" mnemonicParsing="false" onAction="#handleAttach" text="+ Image">
                      <font>
                         <Font size="15.0" />
                      </font>
